@@ -8,7 +8,7 @@
     <array>
         <string>/opt/homebrew/bin/llama-swap</string>
         <string>--config</string>
-        <string>/Users/ben.kalmus/.llama/config.yaml</string>
+        <string>${HOME}/.llama/config.yaml</string>
         <string>--listen</string>
         <string>localhost:11435</string>
     </array>
@@ -17,15 +17,15 @@
         <key>LLAMA_SERVER</key>
         <string>/opt/homebrew/bin/llama-server</string>
         <key>LLAMA_MODELS_DIR</key>
-        <string>/Users/ben.kalmus/.llama/models</string>
+        <string>${HOME}/.llama/models</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/ben.kalmus/.llama/llama-swap.log</string>
+    <string>${HOME}/.llama/llama-swap.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/ben.kalmus/.llama/llama-swap.log</string>
+    <string>${HOME}/.llama/llama-swap.log</string>
 </dict>
 </plist>

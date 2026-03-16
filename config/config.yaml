@@ -3,8 +3,8 @@ logLevel: info
 startPort: 11436
 
 macros:
-  "llama-server": "/opt/homebrew/bin/llama-server"
-  "models-dir": "${env.HOME}/.llama/models"
+  "llama-server": "${env.LLAMA_SERVER}"
+  "models-dir": "${env.LLAMA_MODELS_DIR}"
 
 models:
   "qwen3.5-9b":

@@ -1,0 +1,68 @@
+# docker-compose.yml - llama-swap with profiles for CPU, NVIDIA, Vulkan, and Intel
+#
+# Usage:
+#   docker compose --profile cpu up -d       # CPU only
+#   docker compose --profile nvidia up -d  # NVIDIA GPU (CUDA)
+#   docker compose --profile vulkan up -d  # AMD GPU (Vulkan)
+#   docker compose --profile intel up -d   # Intel GPU
+#   docker compose up -d                   # Starts all profiles
+#
+# Stop:
+#   docker compose down
+
+# Base configuration (shared by all profiles)
+x-base: &base
+  user: "10001:10001"
+  ports:
+    - "11435:8080"
+  environment:
+    - LLAMA_SERVER=/app/llama-server
+    - LLAMA_MODELS_DIR=/models
+  volumes:
+    - ${HOME}/.llama/models:/models
+    - ./config:/config
+    - ./logs:/logs
+  command: --config /config/config.yaml --listen :8080
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+services:
+  llama-swap-cpu:
+    <<: *base
+    image: ghcr.io/mostlygeek/llama-swap:cpu
+    container_name: llama-swap-cpu
+    profiles: [cpu]
+
+  llama-swap-nvidia:
+    <<: *base
+    image: ghcr.io/mostlygeek/llama-swap:cuda
+    container_name: llama-swap-nvidia
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles: [nvidia]
+
+  llama-swap-vulkan:
+    <<: *base
+    image: ghcr.io/mostlygeek/llama-swap:vulkan
+    container_name: llama-swap-vulkan
+    profiles: [vulkan]
+
+  llama-swap-intel:
+    <<: *base
+    image: ghcr.io/mostlygeek/llama-swap:intel
+    container_name: llama-swap-intel
+    profiles: [intel]

@@ -1,0 +1,12 @@
+.git
+.gitignore
+README.md
+Library
+.env
+*.log
+config/
+models/
+logs/
+# Mac binaries (keep Linux versions)
+llama-swap
+llama-server
