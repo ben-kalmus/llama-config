@@ -1,0 +1,42 @@
+ARG LLAMA_CPP_VERSION=b8331
+
+# Build stage: compile llama-server from source
+FROM gcc:15 AS build
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cmake && \
+    rm -rf /var/lib/apt/lists/*
+
+ARG LLAMA_CPP_VERSION
+WORKDIR /src
+RUN git clone --depth 1 --branch ${LLAMA_CPP_VERSION} \
+    https://github.com/ggml-org/llama.cpp.git .
+
+RUN cmake -S . -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DGGML_METAL=OFF \
+    -DLLAMA_BUILD_TESTS=OFF \
+    -DGGML_BACKEND_DL=ON \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+
+RUN cmake --build build --config Release -j $(nproc) --target llama-server
+
+# Collect binary and shared libraries into a flat directory
+RUN mkdir -p /out && \
+    cp build/bin/llama-server /out/ && \
+    find build -name "*.so*" -exec cp -P {} /out/ \;
+
+# Runtime stage: minimal image with llama-server only
+FROM debian:trixie-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgomp1 curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /out/ /app/
+
+ENV LD_LIBRARY_PATH=/app
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/llama-server"]

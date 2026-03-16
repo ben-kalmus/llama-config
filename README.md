@@ -2,29 +2,22 @@
 
 Runs [llama-swap](https://github.com/mostlygeek/llama-swap) on port 11435, managing llama.cpp server processes for local model inference.
 
-## Two Setup Options
+## Setup Options
 
-This repo supports both **Mac native** (Metal GPU) and **Docker** (Linux/NVIDIA) deployments using a unified configuration.
-
-| Setup | Use Case |
-|-------|----------|
-| Mac native + launchd | Metal GPU acceleration (Mac) |
-| Docker Compose | Linux, NVIDIA GPU, CPU |
-
----
-
-## Prerequisites (All Setups)
-
-```bash
-brew install llama.cpp
-brew install llama-swap
-```
+| Setup | Use Case | GPU |
+|-------|----------|-----|
+| Mac native + launchd | Best performance on Mac | Metal |
+| Docker `--profile mac` | Mac requires manual build      | CPU only (ARM64) |
+| Docker `--profile cpu` | Linux CPU | None |
+| Docker `--profile nvidia` | Linux NVIDIA | CUDA |
+| Docker `--profile vulkan` | Linux AMD | Vulkan |
+| Docker `--profile intel` | Linux Intel | Intel |
 
 ---
 
-## Mac Native Setup (Metal GPU)
+## Download Model
 
-### 1. Download Model
+All setups expect models in `~/.llama/models`:
 
 ```bash
 hf download unsloth/Qwen3.5-9B-GGUF \
@@ -32,15 +25,30 @@ hf download unsloth/Qwen3.5-9B-GGUF \
   --include "*Q4_K_M.gguf"
 ```
 
-### 2. Generate and Install Launch Agent
+Alternatively you can find the model on huggingface and download it manually.
+
+---
+
+## Mac Native Setup (Metal GPU)
+
+Runs llama-swap directly on macOS with Metal GPU acceleration.
+
+### Prerequisites
+
+```bash
+brew install llama.cpp
+brew install llama-swap
+```
+
+### Generate and Install Launch Agent
 
 ```bash
 ./bin/generate-plist.sh
 ```
 
-This generates `~/Library/LaunchAgents/com.llama-swap.plist` with your home directory path.
+This reads `./Library/LaunchAgents/com.llama-swap.plist.tmpl`, substitutes `${HOME}` with your actual home directory, and writes the result to `~/Library/LaunchAgents/com.llama-swap.plist`.
 
-### 3. Load the Service
+### Load the Service
 
 ```bash
 launchctl load ~/Library/LaunchAgents/com.llama-swap.plist
@@ -64,19 +72,56 @@ open http://localhost:11435/ui
 
 ---
 
-## Docker Setup (Linux/NVIDIA GPU)
+## Docker Setup
 
-### 1. Download Model
+### Mac (Apple Silicon, CPU-only)
 
-Default location for llama.cpp models is `~/.llama/models`:
+Builds both llama.cpp and llama-swap from source as ARM64 Linux binaries. Two Dockerfiles produce a layered image:
+
+- `Dockerfile.llama` compiles llama-server from the llama.cpp repo (gcc:15 build stage, debian:trixie-slim runtime)
+- `Dockerfile.llama-swap` compiles llama-swap from source (golang:1.26 build stage) and layers it on top of the llama-server image
+
+Build and run:
 
 ```bash
-hf download unsloth/Qwen3.5-9B-GGUF \
-  --local-dir ~/.llama/models/Qwen3.5-9B-GGUF \
-  --include "*Q4_K_M.gguf"
+# Build base image (llama-server), then llama-swap on top
+docker compose build llama-server-mac
+docker compose --profile mac build
+
+# Run
+docker compose --profile mac up -d
 ```
 
-### 2. Run Container
+First build takes ~10 minutes. Subsequent builds are cached.
+
+#### Version Pinning
+
+Versions are defined in `docker-compose.yml` under each service's `build.args`:
+
+| Service | Arg | Default | Description |
+|---------|-----|---------|-------------|
+| `llama-server-mac` | `LLAMA_CPP_VERSION` | `b8331` | llama.cpp release tag |
+| `llama-swap-mac` | `LLAMA_SWAP_VERSION` | `v198` | llama-swap release tag |
+
+Override at build time:
+
+```bash
+docker compose build --build-arg LLAMA_CPP_VERSION=b8400 llama-server-mac
+docker compose --profile mac build --build-arg LLAMA_SWAP_VERSION=v200
+```
+
+#### Rebuild from Scratch
+
+```bash
+docker compose build --no-cache llama-server-mac
+docker compose --profile mac build --no-cache
+```
+
+**Note:** CPU-only inference in Docker is significantly slower than Mac native with Metal GPU.
+
+### Linux / NVIDIA / AMD / Intel
+
+Uses pre-built images from `ghcr.io/mostlygeek/llama-swap` (amd64 only):
 
 ```bash
 # CPU only
@@ -92,7 +137,7 @@ docker compose --profile vulkan up -d
 docker compose --profile intel up -d
 ```
 
-### Service Management
+### Docker Service Management
 
 ```bash
 # View logs
@@ -109,16 +154,22 @@ docker compose restart
 
 ## Unified Configuration
 
-Both setups share the same `config/config.yaml` using environment variables for platform-specific paths.
+Both setups share `./config/config.yaml` using environment variable macros for platform-specific paths:
+
+```yaml
+macros:
+  "llama-server": "${env.LLAMA_SERVER}"
+  "models-dir": "${env.LLAMA_MODELS_DIR}"
+```
 
 ### Environment Variables
 
 | Variable | Mac (launchd) | Docker |
-|----------|---------------|-------|
+|----------|---------------|--------|
 | `LLAMA_SERVER` | `/opt/homebrew/bin/llama-server` | `/app/llama-server` |
-| `LLAMA_MODELS_DIR` | `${HOME}/.llama/models` | `~/.llama/models` (host path) |
+| `LLAMA_MODELS_DIR` | `${HOME}/.llama/models` | `/models` (mapped from `~/.llama/models`) |
 
-These are injected by the launchd plist and docker-compose.yml.
+The launchd plist template sets these in its `EnvironmentVariables` dict. Docker Compose sets them in the `x-base` anchor's `environment` list.
 
 ---
 
@@ -166,12 +217,13 @@ Add to `~/.config/opencode/opencode.json`:
 
 ## Docker Images
 
-| Image | Description |
-|-------|-------------|
-| `ghcr.io/mostlygeek/llama-swap:cpu` | CPU only |
-| `ghcr.io/mostlygeek/llama-swap:cuda` | NVIDIA GPU (CUDA) |
-| `ghcr.io/mostlygeek/llama-swap:vulkan` | AMD GPU (Vulkan) |
-| `ghcr.io/mostlygeek/llama-swap:intel` | Intel GPU |
+| Profile | Image | Architecture |
+|---------|-------|--------------|
+| `cpu` | `ghcr.io/mostlygeek/llama-swap:cpu` | amd64 |
+| `nvidia` | `ghcr.io/mostlygeek/llama-swap:cuda` | amd64 |
+| `vulkan` | `ghcr.io/mostlygeek/llama-swap:vulkan` | amd64 |
+| `intel` | `ghcr.io/mostlygeek/llama-swap:intel` | amd64 |
+| `mac` | Built from `Dockerfile.llama` + `Dockerfile.llama-swap` | arm64 |
 
 ---
 
@@ -181,7 +233,6 @@ Add to `~/.config/opencode/opencode.json`:
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.llama-swap.plist
-rm ~/.llama/config.yaml
 rm ~/Library/LaunchAgents/com.llama-swap.plist
 ```
 
@@ -189,4 +240,6 @@ rm ~/Library/LaunchAgents/com.llama-swap.plist
 
 ```bash
 docker compose down
+docker rmi llama-server-mac:latest
+docker image rm $(docker images --filter=reference='llama-llama-swap-mac' -q)
 ```

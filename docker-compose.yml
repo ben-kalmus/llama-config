@@ -1,10 +1,11 @@
-# docker-compose.yml - llama-swap with profiles for CPU, NVIDIA, Vulkan, and Intel
+# docker-compose.yml - llama-swap with profiles for CPU, NVIDIA, Vulkan, Intel, and Mac
 #
 # Usage:
 #   docker compose --profile cpu up -d       # CPU only
 #   docker compose --profile nvidia up -d  # NVIDIA GPU (CUDA)
 #   docker compose --profile vulkan up -d  # AMD GPU (Vulkan)
 #   docker compose --profile intel up -d   # Intel GPU
+#   docker compose --profile mac up -d     # Mac (Docker on Apple Silicon, CPU-only)
 #   docker compose up -d                   # Starts all profiles
 #
 # Stop:
@@ -66,3 +67,25 @@ services:
     image: ghcr.io/mostlygeek/llama-swap:intel
     container_name: llama-swap-intel
     profiles: [intel]
+
+  # Build-only service: produces the llama-server-mac:latest image
+  # used as the base for llama-swap-mac. Not started at runtime.
+  llama-server-mac:
+    image: llama-server-mac:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.llama
+      args:
+        LLAMA_CPP_VERSION: b8331
+    profiles: [build]
+
+  llama-swap-mac:
+    <<: *base
+    build:
+      context: .
+      dockerfile: Dockerfile.llama-swap
+      args:
+        LLAMA_SWAP_VERSION: v198
+        BASE_IMAGE: llama-server-mac:latest
+    container_name: llama-swap-mac
+    profiles: [mac]

@@ -1,0 +1,25 @@
+ARG LLAMA_SWAP_VERSION=v198
+ARG BASE_IMAGE=llama-server-mac:latest
+
+# Build stage: compile llama-swap from source
+FROM golang:1.26 AS build
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nodejs npm && \
+    rm -rf /var/lib/apt/lists/*
+
+ARG LLAMA_SWAP_VERSION
+WORKDIR /src
+RUN git clone --depth 1 --branch ${LLAMA_SWAP_VERSION} \
+    https://github.com/mostlygeek/llama-swap.git .
+
+RUN make linux
+
+# Runtime stage: layer llama-swap on top of llama-server
+FROM ${BASE_IMAGE}
+
+COPY --from=build /src/build/llama-swap-linux-arm64 /app/llama-swap
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/llama-swap"]
