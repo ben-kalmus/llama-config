@@ -1,0 +1,22 @@
+healthCheckTimeout: 120
+logLevel: info
+startPort: 11436
+
+macros:
+  "llama-server": "/opt/homebrew/bin/llama-server"
+  "models-dir": "${env.HOME}/.llama/models"
+
+models:
+  "qwen3.5-9b":
+    ttl: 300
+    cmd: |
+      ${llama-server}
+      --port ${PORT}
+      --model ${models-dir}/Qwen3.5-9B-GGUF/Qwen3.5-9B-Q4_K_M.gguf
+      --ctx-size 32768
+      --temp 0.6
+      --top-p 0.95
+      --top-k 20
+      --min-p 0.0
+      --jinja
+      --chat-template-kwargs '{"enable_thinking":true}'
