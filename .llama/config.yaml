@@ -13,7 +13,10 @@ models:
       ${llama-server}
       --port ${PORT}
       --model ${models-dir}/Qwen3.5-9B-GGUF/Qwen3.5-9B-Q4_K_M.gguf
-      --ctx-size 32768
+      --ctx-size 262144
+      --parallel 1
+      --cache-type-k q8_0
+      --cache-type-v q8_0
       --temp 0.6
       --top-p 0.95
       --top-k 20

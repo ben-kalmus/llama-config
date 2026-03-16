@@ -72,7 +72,7 @@ Add this block to `~/.config/opencode/opencode.json` under `"provider"`:
         "qwen3.5-9b": {
             "name": "Qwen 3.5 9B Q4_K_M (thinking)",
             "limit": {
-                "context": 32768,
+                "context": 262144,
                 "output": 16384
             }
         }
@@ -112,11 +112,13 @@ The Qwen3.5-9B config uses developer-recommended sampling parameters for precise
 | top_p | 0.95 |
 | top_k | 20 |
 | min_p | 0.0 |
-| context size | 32768 |
+| context size | 262144 (256K, full native max) |
+| KV cache type | q8_0 (halves KV memory vs f16) |
+| parallel slots | 1 |
 | thinking mode | enabled |
 | idle TTL | 300s |
 
-These values come from the [Qwen3.5 model card](https://huggingface.co/Qwen/Qwen3.5-9B). The model is ~5.7GB (Q4_K_M quantization) and fits comfortably on 24GB with 32k context.
+These values come from the [Qwen3.5 model card](https://huggingface.co/Qwen/Qwen3.5-9B). The model is ~5.3GB (Q4_K_M quantization). Qwen3.5 is a hybrid DeltaNet/Attention architecture where only 8 of 32 layers use KV cache, making the cache very efficient. At 262K context with q8_0 KV cache, total GPU memory usage is ~10GB, leaving ~8GB free on 24GB unified memory.
 
 ## Adding more models
 
