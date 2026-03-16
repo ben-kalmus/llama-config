@@ -7,11 +7,11 @@ Runs [llama-swap](https://github.com/mostlygeek/llama-swap) on port 11435, manag
 | Setup | Use Case | GPU |
 |-------|----------|-----|
 | Mac native + launchd | Best performance on Mac | Metal |
-| Docker `--profile mac` | Mac requires manual build      | CPU only (ARM64) |
-| Docker `--profile cpu` | Linux CPU | None |
-| Docker `--profile nvidia` | Linux NVIDIA | CUDA |
-| Docker `--profile vulkan` | Linux AMD | Vulkan |
-| Docker `--profile intel` | Linux Intel | Intel |
+| Docker `--profile native` | Build from source (any arch: arm64, amd64) | CPU only |
+| Docker `--profile cpu` | Pre-built Linux image | CPU only (amd64) |
+| Docker `--profile nvidia` | Pre-built Linux image | CUDA (amd64) |
+| Docker `--profile vulkan` | Pre-built Linux image | Vulkan (amd64) |
+| Docker `--profile intel` | Pre-built Linux image | Intel (amd64) |
 
 ---
 
@@ -74,9 +74,9 @@ open http://localhost:11435/ui
 
 ## Docker Setup
 
-### Mac (Apple Silicon, CPU-only)
+### Native Build (any architecture)
 
-Builds both llama.cpp and llama-swap from source as ARM64 Linux binaries. Two Dockerfiles produce a layered image:
+Compiles both llama.cpp and llama-swap from source for the host architecture. Works on ARM64 (Apple Silicon, Raspberry Pi) and AMD64 (x86_64) alike. Two Dockerfiles produce a layered image:
 
 - `Dockerfile.llama` compiles llama-server from the llama.cpp repo (gcc:15 build stage, debian:trixie-slim runtime)
 - `Dockerfile.llama-swap` compiles llama-swap from source (golang:1.26 build stage) and layers it on top of the llama-server image
@@ -85,11 +85,11 @@ Build and run:
 
 ```bash
 # Build base image (llama-server), then llama-swap on top
-docker compose build llama-server-mac
-docker compose --profile mac build
+docker compose build llama-server-native
+docker compose --profile native build
 
 # Run
-docker compose --profile mac up -d
+docker compose --profile native up -d
 ```
 
 First build takes ~10 minutes. Subsequent builds are cached.
@@ -100,24 +100,24 @@ Versions are defined in `docker-compose.yml` under each service's `build.args`:
 
 | Service | Arg | Default | Description |
 |---------|-----|---------|-------------|
-| `llama-server-mac` | `LLAMA_CPP_VERSION` | `b8331` | llama.cpp release tag |
-| `llama-swap-mac` | `LLAMA_SWAP_VERSION` | `v198` | llama-swap release tag |
+| `llama-server-native` | `LLAMA_CPP_VERSION` | `b8331` | llama.cpp release tag |
+| `llama-swap-native` | `LLAMA_SWAP_VERSION` | `v198` | llama-swap release tag |
 
 Override at build time:
 
 ```bash
-docker compose build --build-arg LLAMA_CPP_VERSION=b8400 llama-server-mac
-docker compose --profile mac build --build-arg LLAMA_SWAP_VERSION=v200
+docker compose build --build-arg LLAMA_CPP_VERSION=b8400 llama-server-native
+docker compose --profile native build --build-arg LLAMA_SWAP_VERSION=v200
 ```
 
 #### Rebuild from Scratch
 
 ```bash
-docker compose build --no-cache llama-server-mac
-docker compose --profile mac build --no-cache
+docker compose build --no-cache llama-server-native
+docker compose --profile native build --no-cache
 ```
 
-**Note:** CPU-only inference in Docker is significantly slower than Mac native with Metal GPU.
+**Note:** This is CPU-only inference. On Mac, the native launchd setup with Metal GPU is significantly faster.
 
 ### Linux / NVIDIA / AMD / Intel
 
@@ -223,7 +223,7 @@ Add to `~/.config/opencode/opencode.json`:
 | `nvidia` | `ghcr.io/mostlygeek/llama-swap:cuda` | amd64 |
 | `vulkan` | `ghcr.io/mostlygeek/llama-swap:vulkan` | amd64 |
 | `intel` | `ghcr.io/mostlygeek/llama-swap:intel` | amd64 |
-| `mac` | Built from `Dockerfile.llama` + `Dockerfile.llama-swap` | arm64 |
+| `native` | Built from `Dockerfile.llama` + `Dockerfile.llama-swap` | arm64, amd64 |
 
 ---
 
@@ -240,6 +240,6 @@ rm ~/Library/LaunchAgents/com.llama-swap.plist
 
 ```bash
 docker compose down
-docker rmi llama-server-mac:latest
-docker image rm $(docker images --filter=reference='llama-llama-swap-mac' -q)
+docker rmi llama-server-native:latest
+docker image rm $(docker images --filter=reference='llama-llama-swap-native' -q)
 ```
